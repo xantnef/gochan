@@ -1,9 +1,77 @@
 /* Primitive Go-style channels in C++ */
 
 #include <queue>
+#include <condition_variable>
+#include <mutex>
 #include <iostream>
 
-#include <pthread.h>
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class gochanQ {
+    unsigned size;
+
+    std::queue<T> elems;
+    std::queue<std::condition_variable*> writers;
+    std::queue<std::condition_variable*> readers;
+
+    std::mutex _mtx;
+    std::unique_lock<std::mutex> lk;
+
+public:
+    gochanQ(unsigned size) : size(size), lk(_mtx, std::defer_lock) {}
+    ~gochanQ() {}
+
+    void send(const T&);
+    T recv();
+};
+
+template <class T>
+void gochanQ<T>::send(const T& elem)
+{
+    lk.lock();
+
+    elems.push(elem);
+
+    if (!readers.empty()) {
+        readers.front()->notify_one();
+        readers.pop();
+    }
+
+    if (!writers.empty() || elems.size() > size) {
+        std::condition_variable cond;
+        writers.push(&cond);
+        cond.wait(lk);
+    }
+
+    lk.unlock();
+}
+
+template <class T>
+T gochanQ<T>::recv(void)
+{
+    lk.lock();
+
+    if (elems.empty() || !readers.empty()) {
+        std::condition_variable cond;
+        readers.push(&cond);
+        cond.wait(lk);
+    }
+
+    if (elems.empty())
+        throw std::logic_error("unexpected elems.size()");
+
+    T elem = elems.front();
+    elems.pop();
+
+    if (!writers.empty()) {
+        writers.front()->notify_one();
+        writers.pop();
+    }
+
+    lk.unlock();
+    return elem;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +87,8 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#include <pthread.h>
 
 class PthreadLocker : public Locker {
     pthread_mutex_t mtx;
@@ -148,7 +218,7 @@ int DumbClass::seq = 0;
 
 int main(void)
 {
-    gochan<DumbClass> ch(1);
+    gochanQ<DumbClass> ch(1);
     DumbClass d42(42);
 
     ch.send(d42);
