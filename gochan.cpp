@@ -4,6 +4,7 @@
 
 #include "gochanPt.h"
 #include "gochanQ.h"
+#include "gochanLf.h"
 
 class DumbClass final {
 public:
@@ -15,9 +16,9 @@ public:
         std::cout << "dumb#" << id << "/" << ninst << std::endl;
     }
     DumbClass(const DumbClass& src) : DumbClass(src.id) {}
-    DumbClass(const DumbClass&& src) : DumbClass(src.id) {
-        std::cout << "  (moved)\n";
-    }
+    //DumbClass(const DumbClass&& src) : DumbClass(src.id) {
+    //    std::cout << "  (moved)\n";
+    //}
     ~DumbClass() {
         std::cout << "destroy " << id << "/" << ninst << std::endl;
     }
@@ -31,14 +32,19 @@ int main(void)
 {
     std::vector<gochan<DumbClass>*> chs = {
         new gochanPt<DumbClass>(1),
-        new gochanQ<DumbClass>(1)
+        new gochanQ<DumbClass>(1),
+        new gochanLf<DumbClass>(1)
     };
 
     DumbClass d42(42);
 
-    for (auto ch : chs) { 
+    for (auto ch : chs) {
         ch->send(d42);
         std::cout << ch->recv().ninst << std::endl;
+    }
+
+    for (auto ch : chs) {
+        delete ch;
     }
 
     return 0;
