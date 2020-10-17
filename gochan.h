@@ -7,6 +7,7 @@ protected:
 
 public:
     gochan(unsigned size) : size(size) {}
+    virtual ~gochan() {}
 
     virtual void send(const T&) = 0;
     virtual T recv() = 0;

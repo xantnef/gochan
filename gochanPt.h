@@ -1,6 +1,7 @@
 class Locker {
 public:
     Locker(int ncond) {}
+    virtual ~Locker() {}
 
     virtual void lock(void) = 0;
     virtual void unlock(void) = 0;
