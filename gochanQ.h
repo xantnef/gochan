@@ -13,6 +13,9 @@ class gochanQ : public gochan<T> {
     std::mutex _mtx;
     std::unique_lock<std::mutex> lk;
 
+    void wait_in_queue(std::queue<std::condition_variable*>&);
+    void wake_queue(std::queue<std::condition_variable*>&);
+
 public:
     gochanQ(unsigned size) : gochan<T>(size), lk(_mtx, std::defer_lock) {}
 
@@ -21,22 +24,32 @@ public:
 };
 
 template <class T>
+void gochanQ<T>::wait_in_queue(std::queue<std::condition_variable*>& q)
+{
+    std::condition_variable cond;
+    q.push(&cond);
+    cond.wait(lk);
+}
+
+template <class T>
+void gochanQ<T>::wake_queue(std::queue<std::condition_variable*>& q)
+{
+    q.front()->notify_one();
+    q.pop();
+}
+
+template <class T>
 void gochanQ<T>::send(const T& elem)
 {
     lk.lock();
 
     elems.push(elem);
 
-    if (!readers.empty()) {
-        readers.front()->notify_one();
-        readers.pop();
-    }
+    if (!readers.empty())
+        wake_queue(readers);
 
-    if (!writers.empty() || elems.size() > this->size) {
-        std::condition_variable cond;
-        writers.push(&cond);
-        cond.wait(lk);
-    }
+    if (!writers.empty() || elems.size() > this->size)
+        wait_in_queue(writers);
 
     lk.unlock();
 }
@@ -46,11 +59,8 @@ T gochanQ<T>::recv(void)
 {
     lk.lock();
 
-    if (elems.empty() || !readers.empty()) {
-        std::condition_variable cond;
-        readers.push(&cond);
-        cond.wait(lk);
-    }
+    if (elems.empty() || !readers.empty())
+        wait_in_queue(readers);
 
     if (elems.empty())
         throw std::logic_error("unexpected elems.size()");
@@ -58,10 +68,8 @@ T gochanQ<T>::recv(void)
     T elem = elems.front();
     elems.pop();
 
-    if (!writers.empty()) {
-        writers.front()->notify_one();
-        writers.pop();
-    }
+    if (!writers.empty())
+        wake_queue(writers);
 
     lk.unlock();
     return elem;
