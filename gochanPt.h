@@ -68,11 +68,14 @@ class gochanPt : public gochan<T> {
 public:
     gochanPt(unsigned size);
     ~gochanPt() {
+        if (!this->closed)
+            close();
         delete locker;
     }
 
     void send(const T&);
     T recv();
+    void close(void);
 };
 
 template <class T>
@@ -88,14 +91,20 @@ void gochanPt<T>::send(const T& elem)
     unsigned seq;
     locker->lock();
 
+    if (this->closed)
+        throw std::logic_error("send on closed channel");
+
     elems.push(elem);
     seq = ++seqWritten;
 
     locker->wake(writeEvent);
 
     while (seq > seqRead + this->size) {
+        if (this->closed)
+            throw std::logic_error("send on closed channel");
         locker->wait(readEvent);
     }
+
     locker->unlock();
 }
 
@@ -104,8 +113,14 @@ T gochanPt<T>::recv(void)
 {
     locker->lock();
 
-    while (seqWritten == seqRead) {
+    while (seqWritten == seqRead && !this->closed) {
         locker->wait(writeEvent);
+    }
+
+    if (seqWritten == seqRead) {
+        T elem;
+        locker->unlock();
+        return elem;
     }
 
     T elem = elems.front();
@@ -116,4 +131,20 @@ T gochanPt<T>::recv(void)
     locker->wakeAll(readEvent);
     locker->unlock();
     return elem;
+}
+
+template <class T>
+void gochanPt<T>::close(void)
+{
+    locker->lock();
+
+    if (this->closed)
+        throw std::logic_error("close on closed channel");
+
+    this->closed = true;
+
+    locker->wakeAll(readEvent);
+    locker->wakeAll(writeEvent);
+
+    locker->unlock();
 }

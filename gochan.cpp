@@ -12,6 +12,7 @@ public:
     int id;
     int ninst;
 
+    DumbClass() : DumbClass(-1) {}
     DumbClass(int id) : id(id), ninst(++seq) {
         std::cout << "dumb#" << id << "/" << ninst << std::endl;
     }

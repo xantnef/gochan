@@ -17,6 +17,7 @@ public:
 
     void send(const T&);
     T recv();
+    void close(void);
 };
 
 template <class T>
@@ -65,4 +66,10 @@ T gochanLf<T>::recv(void)
     }
 
     return elem;
+}
+
+template <class T>
+void gochanLf<T>::close(void)
+{
+    throw std::logic_error("not implemented");
 }
