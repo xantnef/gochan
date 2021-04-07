@@ -21,7 +21,7 @@ public:
     PthreadLocker(int ncond) : Locker(ncond) {
         pthread_mutex_init(&mtx, NULL);
         cond = new pthread_cond_t[ncond];
-        for (int i = 0; i < sizeof(cond)/sizeof(cond[0]); i++) {
+        for (int i = 0; i < ncond; i++) {
             pthread_cond_init(&cond[i], NULL);
         }
     }
