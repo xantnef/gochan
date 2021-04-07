@@ -28,12 +28,21 @@ gochanLf<T>::gochanLf(unsigned size) : gochan<T>(size)
     seqAllocated = seqWritten = seqAssigned = seqRead = 0;
 }
 
+/* Overflow mitigation: signed comparison (inspired by linux jiffies).
+   Limitation: a is not ahead for more than INT_MAX.
+   Or it is mistreated as "already far behind".
+ */
+bool greater_than(unsigned a, unsigned b)
+{
+    return ((int)(a-b)) > 0;
+}
+
 template <class T>
 void gochanLf<T>::send(const T& elem)
 {
     unsigned seq = ++seqAllocated;
 
-    while (seq > seqRead + storsize()) {
+    while (greater_than(seq, seqRead + storsize())) {
         ;
     }
 
@@ -44,7 +53,7 @@ void gochanLf<T>::send(const T& elem)
         ;
     }
 
-    while (seq > seqRead.load() + this->size) {
+    while (greater_than(seq, seqRead + this->size)) {
         ;
     }
 }
@@ -54,7 +63,7 @@ T gochanLf<T>::recv(void)
 {
     unsigned seq = ++seqAssigned;
 
-    while (seq > seqWritten) {
+    while (greater_than(seq, seqWritten)) {
         ;
     }
 
